@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    environment:
+      POSTGRES_DB: pir
+      POSTGRES_USER: pir
+      POSTGRES_PASSWORD: ${PIR_DB_PASSWORD:-pir-local-only}
+    volumes:
+      - pir-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pir"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+  api:
+    build: ./apps/api
+    environment:
+      DATABASE_URL: postgresql://pir:${PIR_DB_PASSWORD:-pir-local-only}@db:5432/pir
+      PIR_DEBUG: ${PIR_DEBUG:-1}
+      DJANGO_SECRET_KEY: ${PIR_SECRET_KEY:-local-development-only-pir-control}
+      ALLOWED_HOSTS: ${PIR_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      CSRF_TRUSTED_ORIGINS: ${PIR_CSRF_ORIGINS:-http://localhost:8088,http://127.0.0.1:8088}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+  web:
+    build: ./apps/web
+    ports:
+      - "127.0.0.1:${PIR_PORT:-8088}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+volumes:
+  pir-db:
